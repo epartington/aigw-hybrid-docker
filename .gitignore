@@ -4,6 +4,8 @@ x*.pem
 *.pfx
 .DS_Store
 *.har
+*.debug
+*.log
 
 .claude
 .vscode

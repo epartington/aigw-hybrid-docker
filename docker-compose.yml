@@ -17,6 +17,8 @@ services:
     networks:
       - aigw-net
 
+#     image: registry.portkey.ai/airsgw/gateway_enterprise:2.19.1-prerelease2
+
   aigw-gateway:
     image: registry.portkey.ai/airsgw/gateway_enterprise:latest
     container_name: aigw-gateway
@@ -30,6 +32,7 @@ services:
     environment:
       SERVER_MODE: all
       MCP_PORT: 8788
+      # MCP_GATEWAY_BASE_URL: https://paramount-unchanged-feeble.ngrok-free.dev
       MCP_GATEWAY_BASE_URL: http://127.0.0.1:8788
       PORTKEY_CLIENT_AUTH: ${PORTKEY_CLIENT_AUTH}
       ORGANISATIONS_TO_SYNC: ${ORGANISATIONS_TO_SYNC}
@@ -49,10 +52,13 @@ services:
       ALBUS_BASEPATH: https://mp.us.prod.airs-gw.portkey.ai/api
       CONTROL_PLANE_BASEPATH: https://aigw.portkey.ai/v1
       CONFIG_READER_PATH: https://api.portkey.ai/v1/sync/model-configs
-      DEBUG_ENABLED: true
+      # Enable Debug Logging
+      LOG_LEVEL: DEBUG
       # JWT settings
       JWT_ENABLED: ON
       JWT_LOCAL_AUTH_DEFAULT_SCOPES: completions.write,mcp.invoke
+      JWT_LOCAL_AUTH_WORKSPACE_ALLOWLIST: "ws-marc2-3c7e6f,ws-marc-w-2bfa39,ws-main-a-997260"
+      JWT_LOCAL_AUTH_DEFAULT_WORKSPACE: "ws-main-a-997260"
       # OTEL settings
       OTEL_PUSH_ENABLED: true
       OTEL_ENDPOINT: "http://otel-collector:4318"

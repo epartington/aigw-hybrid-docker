@@ -57,8 +57,8 @@ services:
       # JWT settings
       JWT_ENABLED: ON
       JWT_LOCAL_AUTH_DEFAULT_SCOPES: completions.write,mcp.invoke
-      JWT_LOCAL_AUTH_WORKSPACE_ALLOWLIST: "ws-marc2-3c7e6f,ws-marc-w-2bfa39,ws-main-a-997260"
-      JWT_LOCAL_AUTH_DEFAULT_WORKSPACE: "ws-main-a-997260"
+      # JWT_LOCAL_AUTH_WORKSPACE_ALLOWLIST: "ws-marc2-3c7e6f,ws-marc-w-2bfa39,ws-main-a-997260,Main_workspace"
+      # JWT_LOCAL_AUTH_DEFAULT_WORKSPACE: "ws-main-a-997260"
       # OTEL settings
       OTEL_PUSH_ENABLED: true
       OTEL_ENDPOINT: "http://otel-collector:4318"

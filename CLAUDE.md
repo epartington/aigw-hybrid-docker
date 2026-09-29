@@ -119,6 +119,7 @@ echo $TOKEN | cut -d. -f2 | base64 -d 2>/dev/null | python3 -m json.tool
 | `docs/claude-code-cli-entra-auth-default-az-login.md` | Simpler EntraID auth for Claude Code CLI using a plain `az account get-access-token` — no app registration or claims policy needed |
 | `docs/claude-code-cli-vertex-adc-auth.md` | Guide for Claude Code CLI routing to Vertex AI (Anthropic Claude) through AIGW using Google ADC tokens |
 | `docs/gemini-cli-vertex-adc-auth.md` | Guide for Gemini CLI routing to Vertex AI (Gemini) through AIGW's `/v1/proxy` pass-through using Google ADC — native Vertex mode |
+| `docs/ollaya-typesafe-caddy-tls.md` | Routing TypeSafe System One decision requests through AIGW to a local Ollaya daemon, fronted by Caddy (`tls internal`) at `https://aigw.sase-au.io:8443` |
 | `docs/jwt-auth-resolution-logic.md` | Walkthrough of how the gateway resolves org/workspace/scopes from a JWT bearer token (reference when JWT auth resolves to an unexpected workspace or a downstream provider/config lookup fails); flowchart in `docs/images/jwt-auth-flow.excalidraw` |
 | `Setup-EntraID-App.sh` | Interactive script that automates EntraID app registration and claims policy |
 | `get-az-token.sh` | `apiKeyHelper` script for Claude Code CLI — fetches EntraID access token via Azure CLI |

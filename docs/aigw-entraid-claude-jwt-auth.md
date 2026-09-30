@@ -66,6 +66,14 @@ These are available natively and can be added through the UI without a custom po
 
 The remaining claims require a Claims Mapping Policy, which must be created via the **Microsoft Graph API** or Azure CLI (there is no UI for this). The policy should be defined as follows, substituting your deployment-specific values where indicated:
 
+   ```
+   POST https://graph.microsoft.com/v1.0/policies/claimsMappingPolicies
+
+   Headers: Content-Type: application/json
+   
+   Body: <PAYLOAD BELOW>
+   ```
+
 ```json
 {
   "definition": [
@@ -84,6 +92,9 @@ The remaining claims require a Claims Mapping Policy, which must be created via 
   "type": "ClaimsMappingPolicy"
 }
 ```
+
+The response payload will return an "id" field (a GUID, e.g., 12345678-abcd-1234-ef01-123456789abc). Save this policyId
+
 
 The claims this policy injects are:
 
@@ -119,6 +130,8 @@ After creating the policy, assign it to the app's service principal:
 
 ```
 POST https://graph.microsoft.com/v1.0/servicePrincipals/{servicePrincipalId}/claimsMappingPolicies/$ref
+
+Headers: Content-Type: application/json
 
 Body: {"@odata.id": "https://graph.microsoft.com/v1.0/policies/claimsMappingPolicies/{policyId}"}
 ```

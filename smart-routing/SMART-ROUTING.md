@@ -151,3 +151,17 @@ POST /check-medium
 ## Limitations
 
 This only evaluates the prompt itself — there's no cost decision factoring in how expensive it would be to reload context vs. staying with the current model. For a much more intelligent solution, watch this space (as of early September 2026).
+
+## How to test
+
+```
+
+TOKEN=$(bash /Users/mgollop/VSCode/aigw-hybrid-docker/EntraID/get-az-token.sh)
+
+curl -s http://127.0.0.1:8787/v1/messages \
+  -H "x-portkey-config: pc-webhoo-a159ef" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "anthropic.claude-sonnet-5", "max_tokens": 50, "messages": [{"role": "user", "content": "<simple/medium/complex prompt>"}]}' \
+  | python3 -c "import json,sys; print(json.load(sys.stdin).get('model'))"
+```

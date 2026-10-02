@@ -72,6 +72,8 @@ In the app's **Manifest** tab, set two fields under `"api"`:
 
 Click **Save**.
 
+> **Verification:** re-open the Manifest editor to confirm `"acceptMappedClaims": true` was saved. This satisfies custom-key enforcement and resolves the `AADSTS50146` error.
+
 ## 5. Restrict and assign access via the Enterprise Application
 
 In the [Entra Admin Center](https://entra.microsoft.com), go to **Enterprise applications → All applications** and search for your app by name — the App Registration above automatically has a matching Enterprise Application (service principal).
@@ -100,7 +102,7 @@ Still on the Enterprise Application, go to **Single sign-on → OIDC-based Sign-
 
 ![Attributes and Claims](./images/14%20Attributes%20and%20Claims.png)
 
-Add the claims the gateway needs as **Additional claims** (use **+ Add new claim**, source = typed constant value, not an attribute):
+Add the claims the gateway needs as **Additional claims** using **+ Add new claim**:
 
 | Claim name | Value | Purpose |
 |---|---|---|
@@ -110,7 +112,31 @@ Add the claims the gateway needs as **Additional claims** (use **+ Add new claim
 
 ![Add Required Claims](./images/16%20Add%20Required%20Claims.png)
 
-**NOTE: ** You can choose to leave out the portkey_workspace and leverage SCIM group assignment to allocate the workspace. Upon authentication the gateway will scan for valid users based on the UPN or email and assign them to the approiate workspace. 
+The **Manage claim** editor is shared with SAML, so several fields on it don't apply to your OIDC/JWT token. To emit a **constant value** (e.g. the `portkey_oid` UUID), map the fields as follows — there is no dedicated "constant" source type; a constant is produced *through* the **Attribute** source:
+
+| Field | What to set |
+|---|---|
+| **Name** | The claim name, e.g. `portkey_oid` |
+| **Namespace** | **Leave empty** — a namespace prefixes the claim name, so the token would carry something other than a bare `portkey_oid` and the gateway won't find it |
+| **Choose name format** | Ignore / leave default — SAML-only, irrelevant to the JWT |
+| **Source** | Select **Attribute** |
+| **Source attribute** | This is an **editable combo box** — **type your literal value in double quotes** (e.g. `"your-org-id"`), then select the "Enter the value you typed" entry that appears. The surrounding double quotes are required for Entra to treat it as a constant string rather than an attribute lookup |
+| **Claim conditions** | Leave empty for a single static value (used only for the group-based values below) |
+| **Advanced SAML claims options** | Leave off — SAML-only |
+
+Using those field mappings, add the three claims with exactly these values (note the **double quotes** around every Source attribute value):
+
+| Claim | Name | Source attribute |
+|---|---|---|
+| Portkey Org ID | `portkey_oid` | `"your-org-id"` |
+| Portkey Workspace | `portkey_workspace` | `"your-workspace-id"` |
+| Portkey Scope | `scopes` | `"completions.write"` |
+
+> **Use `scopes`, not `scope`.** The claim name must be the plural `scopes` — the gateway does not read a singular `scope` claim, so a claim named `scope` is silently ignored.
+
+(`portkey_workspace` can be omitted if you let CIE group assignment resolve the workspace — see the note below.)
+
+**NOTE: ** You can choose to leave out the portkey_workspace and leverage CIE group assignment to allocate the workspace. Upon authentication the gateway will scan for valid users based on the UPN or email and assign them to the approiate workspace. 
 
 ### Group-based claim values (multi-team / multi-workspace)
 
@@ -155,6 +181,14 @@ Save it and note the generated **config ID** — it's used in step 11.
 Enable JWT Authentication in the AIGW control plane and point it at your EntraID app (tenant ID from step 2).
 
 ![Enable JWT Authentication](./images/JWT-Auth.png)
+
+Use the OIDC Issuer URL from step 2 (substitute your tenant ID):
+
+```
+https://login.microsoftonline.com/<tenant-id>/v2.0
+```
+
+> **Note:** the AI Gateway accepts **multiple JWKS URLs**, comma-separated — useful when tokens may be signed by more than one issuer (e.g. several tenants or app registrations).
 
 ## 11. Configure the 3rd-party (OIDC) provider in Claude Desktop
 

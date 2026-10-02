@@ -1,5 +1,5 @@
 .env
-x*.pem
+*.pem
 *.key
 *.pfx
 .DS_Store

@@ -188,7 +188,15 @@ Use the OIDC Issuer URL from step 2 (substitute your tenant ID):
 https://login.microsoftonline.com/<tenant-id>/v2.0
 ```
 
-> **Note:** the AI Gateway accepts **multiple JWKS URLs**, comma-separated — useful when tokens may be signed by more than one issuer (e.g. several tenants or app registrations).
+For the **JWKS URL**, use the **app-scoped** form with `?appid=<client-id>`:
+
+```
+https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys?appid=<client-id>
+```
+
+> **Important — the `?appid=<client-id>` is required.** Because this app emits custom/mapped claims (`portkey_oid`, `portkey_workspace`, …), EntraID signs its tokens with the certificate you uploaded in step 3, not Microsoft's default keys. The standard JWKS endpoint (without `?appid=`) does **not** publish that custom signing key, so the gateway can't verify the signature and rejects every token with a `401`. The app-scoped endpoint publishes the custom key.
+>
+> The AI Gateway also accepts **multiple JWKS URLs**, comma-separated — useful when tokens may be signed by more than one issuer (e.g. several tenants or app registrations).
 
 ## 11. Configure the 3rd-party (OIDC) provider in Claude Desktop
 
@@ -257,3 +265,20 @@ x-portkey-config: <config-id>
 - **Org/workspace not resolved** — double check `portkey_oid` in the token matches this deployment's `ORGANISATIONS_TO_SYNC` env var exactly.
 - **Redirect fails / stuck on EntraID** — confirm the redirect URI registered in EntraID (step 2) exactly matches the redirect port configured in Claude Desktop (step 11), including `http://localhost:<port>`.
 - **Authentication fails right after setup with an issuer mismatch** — confirm `requestedAccessTokenVersion: 2` was saved in the manifest (step 4); a v1.0 token's issuer won't match the v2.0 issuer URL configured in step 11.
+
+### 401 even though the token's claims are correct — verify the JWKS URL
+
+If the decoded token looks right (`portkey_oid`, `scopes`, `ver: 2.0`, bare-GUID `aud`) but the gateway still returns `401`, the gateway is almost certainly fetching a JWKS that doesn't contain your token's signing key — the `?appid=<client-id>` is missing from the JWKS URL (step 10). Prove it: the token header's `kid` will be **absent** from the standard JWKS and **present** in the app-scoped one.
+
+Fill in your three values, then run:
+
+```sh
+export TID=<your-tenant-id>      # token "tid" (and the tenant in "iss")
+export APPID=<your-client-id>    # token "aud"
+export KID=<kid-from-header>     # token header "kid" (first segment of the JWT)
+
+echo "standard JWKS (no appid):   $(curl -s "https://login.microsoftonline.com/$TID/discovery/v2.0/keys" | grep -c "$KID")"
+echo "app-scoped JWKS (?appid=):  $(curl -s "https://login.microsoftonline.com/$TID/discovery/v2.0/keys?appid=$APPID" | grep -c "$KID")"
+```
+
+A result of `0` then `1` confirms the custom signing key only appears in the app-scoped keyset — update the gateway's JWKS URL to the `?appid=<client-id>` form (step 10) and the `401` clears.

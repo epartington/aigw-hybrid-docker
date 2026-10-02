@@ -6,11 +6,18 @@ Configures Claude Desktop to authenticate against this self-hosted AIGW Gateway 
 
 ## Prerequisites
 
-- This repo's `docker-compose.yml` stack running
-  - `JWT_ENABLED: ON`
+> **This guide applies to both SaaS and Hybrid (self-hosted) gateway deployments.** The EntraID app registration and claims setup is identical for both; only a Hybrid deployment additionally needs the local gateway stack running (see below).
+
+Required in all cases:
+
 - An EntraID tenant with permissions to register applications and manage Enterprise Application properties (Application Administrator or Cloud Application Administrator)
 - `openssl` installed locally (for generating the token-signing certificate in step 3)
+- Azure CLI installed (`brew install azure-cli`) and logged in at least once
 - Claude Desktop installed, with the Developer menu enabled (step 1 below)
+
+For a **Hybrid (self-hosted)** gateway, additionally:
+
+- This repo's `docker-compose.yml` stack running, with `JWT_ENABLED: ON`
 
 ## 1. Enable the Developer menu in Claude Desktop
 

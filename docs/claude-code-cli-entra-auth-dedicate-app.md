@@ -83,6 +83,8 @@ In the app's **Manifest** tab, set two fields under `"api"`:
 
 Click **Save**.
 
+> **Verification:** re-open the Manifest editor to confirm `"acceptMappedClaims": true` was saved. This satisfies custom-key enforcement and resolves the `AADSTS50146` error.
+
 ## 4. Restrict and assign access via the Enterprise Application
 
 In the [Entra Admin Center](https://entra.microsoft.com), go to **Enterprise applications → All applications** and search for your app by name — the App Registration above automatically has a matching Enterprise Application (service principal).
@@ -111,7 +113,7 @@ Still on the Enterprise Application, go to **Single sign-on → OIDC-based Sign-
 
 ![Attributes and Claims](./images/14%20Attributes%20and%20Claims.png)
 
-Add the claims the gateway needs as **Additional claims** (use **+ Add new claim**, source = typed constant value, not an attribute):
+Add the claims the gateway needs as **Additional claims** using **+ Add new claim**:
 
 | Claim name | Value | Purpose |
 |---|---|---|
@@ -121,7 +123,29 @@ Add the claims the gateway needs as **Additional claims** (use **+ Add new claim
 
 ![Add Required Claims](./images/16%20Add%20Required%20Claims.png)
 
-**NOTE:** You can choose to leave out `portkey_workspace` and leverage SCIM group assignment to allocate the workspace instead. Upon authentication the gateway will scan for valid users based on the UPN or email and assign them to the appropriate workspace.
+The **Manage claim** editor is shared with SAML, so several fields on it don't apply to your OIDC/JWT token. To emit a **constant value** (e.g. the `portkey_oid` UUID), map the fields as follows — there is no dedicated "constant" source type; a constant is produced *through* the **Attribute** source:
+
+| Field | What to set |
+|---|---|
+| **Name** | The claim name, e.g. `portkey_oid` |
+| **Namespace** | **Leave empty** — a namespace prefixes the claim name, so the token would carry something other than a bare `portkey_oid` and the gateway won't find it |
+| **Choose name format** | Ignore / leave default — SAML-only, irrelevant to the JWT |
+| **Source** | Select **Attribute** |
+| **Source attribute** | This is an **editable combo box** — **type your literal value in double quotes** (e.g. `"your-org-id"`), then select the "Enter the value you typed" entry that appears. The surrounding double quotes are required for Entra to treat it as a constant string rather than an attribute lookup |
+| **Claim conditions** | Leave empty for a single static value (used only for the group-based values below) |
+| **Advanced SAML claims options** | Leave off — SAML-only |
+
+Using those field mappings, add the three claims with exactly these values (note the **double quotes** around every Source attribute value):
+
+| Claim | Name | Source attribute |
+|---|---|---|
+| Portkey Org ID | `portkey_oid` | `"your-org-id"` |
+| Portkey Workspace | `portkey_workspace` | `"your-workspace-id"` |
+| Portkey Scope | `scopes` | `"completions.write"` |
+
+> **Use `scopes`, not `scope`.** The claim name must be the plural `scopes` — the gateway does not read a singular `scope` claim, so a claim named `scope` is silently ignored.
+
+**NOTE:** You can choose to leave out `portkey_workspace` and leverage CIE group assignment to allocate the workspace instead. Upon authentication the gateway will scan for valid users based on the UPN or email and assign them to the appropriate workspace.
 
 ### Group-based claim values (multi-team / multi-workspace)
 
@@ -169,7 +193,21 @@ From either the App Registration's Overview or the Enterprise Application's Over
 
 ![Client ID](./images/18%20Client%20ID.png)
 
-## 9. Install the token helper script
+## 9. Enable JWT Authentication
+
+Enable JWT Authentication in the AIGW control plane and point it at your EntraID app (tenant ID from step 1).
+
+![Enable JWT Authentication](./images/JWT-Auth.png)
+
+Use the OIDC Issuer URL for your tenant (substitute your tenant ID):
+
+```
+https://login.microsoftonline.com/<tenant-id>/v2.0
+```
+
+> **Note:** the AI Gateway accepts **multiple JWKS URLs**, comma-separated — useful when tokens may be signed by more than one issuer (e.g. several tenants or app registrations).
+
+## 10. Install the token helper script
 
 Copy `get-az-token.sh` from this repo to your Claude config directory:
 
@@ -178,9 +216,9 @@ cp get-az-token.sh ~/.claude/get-az-token.sh
 chmod +x ~/.claude/get-az-token.sh
 ```
 
-The script reads `ENTRAID_CLIENT_ID` and `ENTRAID_TENANT_ID` from the environment. Supply them via the `env` block in Claude Code's settings (step 10) — that is the recommended approach and no other configuration file is needed.
+The script reads `ENTRAID_CLIENT_ID` and `ENTRAID_TENANT_ID` from the environment. Supply them via the `env` block in Claude Code's settings (step 11) — that is the recommended approach and no other configuration file is needed.
 
-## 10. Configure Claude Code CLI
+## 11. Configure Claude Code CLI
 
 Edit (or create) `~/.claude/settings.json`:
 
@@ -240,13 +278,13 @@ mkdir -p .claude
 
 Theme, permissions, and any other global settings are inherited automatically.
 
-## 11. Set the Portkey config header (optional)
+## 12. Set the Portkey config header (optional)
 
 If your gateway requires an explicit routing config (the `x-portkey-config` header), the recommended approach is to configure a **default config** in the AIGW control plane for your workspace — the gateway then applies it to all requests that don't carry the header explicitly.
 
 Alternatively, you can set it per-project in `.claude/settings.json` at the repo level if Claude Code CLI adds support for custom request headers in your version.
 
-## 12. Verify with curl
+## 13. Verify with curl
 
 Before starting Claude Code, confirm the token and gateway are working end-to-end:
 
@@ -273,7 +311,45 @@ Check that `portkey_oid`, `portkey_workspace` (if used), and `scopes` are presen
 
 ![JWT from a different group](./images/20%20JWT%20Alternative%20Login.png)
 
-## 13. Start Claude Code
+### Validate JWT auth with `az` (no helper script)
+
+To test the gateway's JWT-auth path directly with the Azure CLI — useful for debugging, or to confirm auth works *before* the Vertex integration is live — first export your app's client and tenant IDs (from step 1):
+
+```sh
+export ENTRAID_CLIENT_ID="<your-app-client-id>"
+export ENTRAID_TENANT_ID="<your-tenant-id>"
+```
+
+Mint a token with `az` and decode it to confirm the claims are present before the gateway ever sees it:
+
+```sh
+TOKEN=$(az account get-access-token \
+  --resource "$ENTRAID_CLIENT_ID" \
+  --tenant   "$ENTRAID_TENANT_ID" \
+  --query    accessToken -o tsv)
+
+echo "$TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | python3 -m json.tool
+```
+
+Use the **bare client GUID** as `--resource` — not the `api://` form, which triggers `AADSTS501461`. Confirm `portkey_oid`, `scopes` (plural), and `portkey_workspace` (if used) are present, and that `ver` is `2.0`.
+
+Then send one request and read only the HTTP status code — that isolates the JWT-auth layer:
+
+```sh
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8787/v1/messages \
+  -H "x-portkey-config: <your-config-id>" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"anthropic.claude-sonnet-5","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}'
+```
+
+- **`401`** — JWT auth **failed**: bad signature, missing `portkey_oid`/`scopes`, wrong issuer/version, or the org isn't in `ORGANISATIONS_TO_SYNC`.
+- **`200`** — JWT auth passed and the downstream completion worked.
+- **Any non-`401` error** (e.g. a provider/model error, or `Following keys are not valid`) — JWT auth **still passed**; those errors occur *after* identity resolution. So for validating auth alone, anything that isn't a `401` means the gateway accepted the token.
+
+This ordering — verify signature, resolve org/workspace/scopes, then route downstream — is documented in [jwt-auth-resolution-logic.md](./jwt-auth-resolution-logic.md).
+
+## 14. Start Claude Code
 
 ```sh
 claude
